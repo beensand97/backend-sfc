@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, staging]
+  pull_request:
+    branches: [main, develop, staging]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-test-build:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test:ci
+        env:
+          CI: "true"
+          NODE_ENV: test
+
+      - name: Build
+        run: npm run build
+        env:
+          # Placeholder secrets so `strapi build` succeeds in CI. Real values
+          # are injected by the deployment platform.
+          APP_KEYS: ci-app-key-1,ci-app-key-2
+          API_TOKEN_SALT: ci-api-salt
+          ADMIN_JWT_SECRET: ci-admin-secret
+          TRANSFER_TOKEN_SALT: ci-transfer-salt
+          JWT_SECRET: ci-jwt-secret
+          ENCRYPTION_KEY: ci-encryption-key
+          NODE_ENV: production
+
+  security:
+    name: Security audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: npm audit (prod deps, high+)
+        run: npm audit --omit=dev --audit-level=high
